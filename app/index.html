@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Doz and CoCare Trips</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="bar">
+  <img src="logo.jpg" alt="Doz and Co Care LLC">
+  <div class="brand">Doz and CoCare<small>Transportation</small></div>
+  <div class="seg" role="group" aria-label="Demo: choose who you are viewing as">
+    <button type="button" id="roleDriver" data-role="driver" aria-pressed="true">Driver</button>
+    <button type="button" id="roleOffice" data-role="office" aria-pressed="false">Office</button>
+  </div>
+</header>
+<p class="demoline">Demo</p>
+<div id="live" class="sr" role="status" aria-live="polite"></div>
+<div id="app"></div>
+<details class="demo" id="demo">
+  <summary>Demo controls (for testing only)</summary>
+  <div class="row">
+    <label class="small" for="speed">Clock speed</label>
+    <select id="speed" style="width:auto"><option value="10">10× faster</option><option value="30" selected>30× faster</option><option value="90">90× faster</option></select>
+    <button class="btn second sm" type="button" data-demo="fail-net">Next save fails: no connection</button>
+    <button class="btn second sm" type="button" data-demo="fail-auth">Next save fails: login expired</button>
+    <button class="btn second sm" type="button" data-demo="race">Next claim is lost to another driver</button>
+    <button class="btn second sm" type="button" data-demo="reset">Restart demo</button>
+    <button class="btn second sm" type="button" data-demo="ob-reset">Show onboarding again</button>
+  </div>
+</details>
+<script src="app.js"></script>
+</body>
+</html>
