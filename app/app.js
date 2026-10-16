@@ -148,10 +148,10 @@ function roadSvg() {
 function pin(x, y, c, l) { return '<g transform="translate(' + x + ' ' + y + ')"><path d="M0 0 C-9 -10 -10 -16 -10 -19 A10 10 0 1 1 10 -19 C10 -16 9 -10 0 0Z" fill="' + c + '" stroke="#fff" stroke-width="1.5"/><text y="-15" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Figtree,sans-serif">' + l + '</text></g>'; }
 function mapDyn(t) {
   var p = t.pts, h = '<polyline points="' + pts(p) + '" fill="none" stroke="#fff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/><polyline points="' + pts(p) + '" fill="none" stroke="#233B82" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>';
-  if (t.progress > 0) h += '<polyline points="' + pts(upTo(p, Math.max(t.progress, .001))) + '" fill="none" stroke="#E49342" stroke-width="4.4" stroke-linejoin="round" stroke-linecap="round"/>';
+  if (t.progress > 0) h += '<polyline points="' + pts(upTo(p, Math.max(t.progress, .001))) + '" fill="none" stroke="#2E7D32" stroke-width="4.4" stroke-linejoin="round" stroke-linecap="round"/>';
   var e = p[p.length - 1], c = at(p, t.progress);
-  h += pin(p[0][0], p[0][1], '#233B82', 'P') + pin(e[0], e[1], '#E49342', 'D');
-  h += '<g transform="translate(' + c.x + ' ' + c.y + ')"><circle r="12" fill="#E49342" opacity=".25"/><g transform="rotate(' + c.a + ')"><circle r="7.5" fill="#E49342" stroke="#fff" stroke-width="2"/><path d="M-2.5 -3.5 L4 0 L-2.5 3.5Z" fill="#18233F"/></g></g>';
+  h += pin(p[0][0], p[0][1], '#233B82', 'P') + pin(e[0], e[1], '#2E7D32', 'D');
+  h += '<g transform="translate(' + c.x + ' ' + c.y + ')"><circle r="12" fill="#2E7D32" opacity=".25"/><g transform="rotate(' + c.a + ')"><circle r="7.5" fill="#2E7D32" stroke="#fff" stroke-width="2"/><path d="M-2.5 -3.5 L4 0 L-2.5 3.5Z" fill="#fff"/></g></g>';
   return h;
 }
 function mapHtml(t) { return '<div class="mapwrap"><svg viewBox="0 20 400 290" role="img" aria-label="Map showing the route from pickup to destination">' + roadSvg() + '<g id="mapdyn">' + mapDyn(t) + '</g></svg><div class="mapnote">Illustration of the route. Not live GPS.</div></div>'; }
@@ -425,7 +425,7 @@ function helpBlocks(role, extra) {
 function drvStage() { var o = S.ob.driver; if (S.role !== 'driver') return 'app'; if (S.tourReplay) return 'tour'; if (!o.done) return ['welcome', 'signin', 'confirm', 'tour'][o.step] || 'tour'; return o.signedIn ? 'app' : 'signin'; }
 function obShell(body, bar) { return '<div class="drv"><main id="main">' + body + '</main><div class="actionbar"><div class="in">' + bar + '</div></div></div>'; }
 function oBtn(label, d, cls, extra) { return '<button type="button" class="btn ' + (cls || 'primary') + ' block" data-a="obD" data-do="' + d + '" ' + (extra || '') + '>' + label + '</button>'; }
-function welcomeView() { return obShell('<div class="hero"><img src="' + LOGO + '" alt="Doz and Co Care LLC"><h1 id="h1">Welcome to Doz and CoCare</h1><p class="muted">Your trips, instructions and trip records are all in one place.</p></div>', oBtn('Get started', 'start')); }
+function welcomeView() { return obShell('<div class="hero"><img src="' + LOGO + '" alt="Doz and Co Care NEMT logo"><h1 id="h1">Welcome to Doz and CoCare</h1><p class="muted">Your trips, instructions and trip records are all in one place.</p></div>', oBtn('Get started', 'start')); }
 function signinView() {
   var o = S.ob.driver, code = o.phase === 'code', h = '<div><h1 id="h1">' + (code ? 'Enter your code' : 'Sign in') + '</h1><p class="muted" style="margin-top:8px">' + (code ? 'We sent a 6-digit code to ' + esc(o.contact) + '.' : 'Your office has already set up your account. Enter the phone number or email they gave you and we will send you a sign-in code.') + '</p></div>' + flash();
   h += code ? fld('siK', 'Sign-in code', 'Type the 6 digits from the message.', 'text', '6 digits') : fld('siC', 'Phone number or email', 'Use the one your office has on file for you.', 'text', 'For example 555 010 0123');
@@ -506,7 +506,7 @@ function wizard() {
   var a = S.ob.admin, st = a.step, h = '', bar = '', title = '';
   var prog = '<div><p class="muted small">Setup · ' + (st === 0 ? 'Start' : st < 6 ? 'Step ' + st + ' of 5' : 'Last step') + '</p><div class="steps" aria-hidden="true">' + [1, 2, 3, 4, 5].map(function (i) { return '<span class="' + (i < st || st === 6 ? 'd' : i === st ? 'c' : '') + '"></span>'; }).join('') + '</div></div>';
   if (st === 0) {
-    h = '<div class="hero"><img src="' + LOGO + '" alt="Doz and Co Care LLC"><h1 id="h1">Let’s get Doz and CoCare ready</h1><p class="muted">We’ll help you set up your contracts, drivers and trips. There are five short steps. You can stop and come back at any time.</p></div><ol class="card" style="margin:0;padding:16px 16px 16px 36px"><li>Check your organisation and how jobs are assigned</li><li>Check your contract rates</li><li>Add your drivers</li><li>Add your first trips</li><li>Review the checklist</li></ol>';
+    h = '<div class="hero"><img src="' + LOGO + '" alt="Doz and Co Care NEMT logo"><h1 id="h1">Let’s get Doz and CoCare ready</h1><p class="muted">We’ll help you set up your contracts, drivers and trips. There are five short steps. You can stop and come back at any time.</p></div><ol class="card" style="margin:0;padding:16px 16px 16px 36px"><li>Check your organisation and how jobs are assigned</li><li>Check your contract rates</li><li>Add your drivers</li><li>Add your first trips</li><li>Review the checklist</li></ol>';
     bar = aBtn('Start setup', 'next') + aBtn('I will do this later', 'later', 'quiet');
   } else if (st === 1) {
     h = prog + '<h1 id="h1">Your organisation</h1>' + flash() + '<div class="card"><dl class="kv"><dt>Organisation</dt><dd>' + ORG + '</dd></dl><p class="help muted small" style="margin-top:8px">We already have this. Nothing to type.</p></div><fieldset class="field card"><legend>How are jobs given to drivers?</legend><div class="stack tight"><label class="choice" for="mClaim"><input type="radio" name="mode" id="mClaim" value="claim" ' + (S.mode === 'claim' ? 'checked' : '') + '> Drivers can take open jobs</label><label class="choice" for="mAssign"><input type="radio" name="mode" id="mAssign" value="assign" ' + (S.mode === 'assign' ? 'checked' : '') + '> The office assigns every job</label></div><p class="help">You can change this later under Contracts.</p></fieldset>';

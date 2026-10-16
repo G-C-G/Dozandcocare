@@ -27,7 +27,7 @@ function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .0
   const overflow = async (label) => { const o = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok(o <= 1, 'no horizontal scroll: ' + label, 'overflow ' + o); };
 
   console.log('Contrast of design tokens (WCAG AA 4.5:1)');
-  [['#18233F', '#FFFFFF'], ['#18233F', '#F3F6FB'], ['#53607C', '#FFFFFF'], ['#53607C', '#F3F6FB'], ['#233B82', '#FFFFFF'], ['#FFFFFF', '#233B82'], ['#18233F', '#E49342'],
+  [['#18233F', '#FFFFFF'], ['#18233F', '#F3F6FB'], ['#53607C', '#FFFFFF'], ['#53607C', '#F3F6FB'], ['#233B82', '#FFFFFF'], ['#FFFFFF', '#233B82'], ['#FFFFFF', '#2E7D32'], ['#1F5E24', '#E6F2E4'], ['#7A4B00', '#FDF1D8'],
    ['#1B6B3F', '#E3F3EA'], ['#7A4B00', '#FDF1D8'], ['#A3261E', '#FBE7E5'], ['#1A2C63', '#E8EDFA']].forEach(([a, b]) => ok(ratio(a, b) >= 4.5, a + ' on ' + b, ratio(a, b).toFixed(2)));
 
   console.log('Driver: home and next trip');

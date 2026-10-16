@@ -22,7 +22,7 @@
 - **Do not commission a custom application now.** There is no documented problem, no trip volume, no baseline of admin hours or error costs, and no maintenance owner. Without those, a custom build cannot be justified. [REC]
 - The transportation work is a side line of a home-care company. The most likely best-value path is: **(1) a well-structured spreadsheet or small no-code database with contract-rate logic, (2) a 60–90 day measured pilot, (3) test one or two existing NEMT/dispatch products only if the pilot shows real pain.** [REC]
 - Custom software only wins if volume is high enough that measurable benefits exceed roughly **$1,500+/month** (illustrative break-even, Section 11). A fleet of 6–10 drivers is unlikely to reach this unless volume or error losses are far larger than expected. [ILLUSTRATIVE]
-- **Two facts about the business conflict and must be resolved first:** the request describes both "non-medical transportation" and Medicaid **NEMT**. NEMT brings Medicaid enrolment, broker/trip-data rules, and likely HIPAA obligations. This changes software choice and cost materially.
+- **The service is most likely NEMT, and that should be confirmed.** The updated logo reads "NEMT" and the owner's website text describes rides to Medicaid appointments. An earlier note said "non-medical", which looks like a slip. NEMT brings Medicaid enrolment, broker and trip-data rules, and likely HIPAA obligations, so it materially changes software choice and cost. [Updated 2026-10-16]
 - The contract rates ($13.50 + $1.60/mi; $15.00 + $1.75/mi) are **not confirmed** as revenue, driver pay, or something else. No margin can be calculated until this is known.
 - The 6–10 driver figure is **unconfirmed**. The ~30 workers the owner mentioned are home-care staff and are **excluded** from scope unless the owner says otherwise.
 
@@ -48,14 +48,14 @@
 
 | Item | Status | Detail |
 |---|---|---|
-| Legal name | [OWNER] | Doz and CoCare LLC (logo reads "Doz and Co Care LLC.") |
+| Legal name | [OWNER] | Doz and CoCare LLC (the earlier logo read "Doz and Co Care LLC."; the updated logo reads "Doz and Co Care NEMT") |
 | Core business | [OWNER] | Home-care business that also offers transportation |
 | Home-care workforce | [OWNER] | ~30 workers — **not** assumed to be drivers or platform users |
-| Service description | [OWNER] | Marketing text says NEMT to Medicaid appointments; the instruction also says "non-medical transportation". **Conflict — unresolved** |
+| Service description | [OWNER] | Updated logo says NEMT and website text describes rides to Medicaid appointments. One earlier note said "non-medical". **Treated as NEMT; owner to confirm** |
 | Contract A | [OWNER] | $13.50 flat + $1.60/mile |
 | Contract B | [OWNER] | $15.00 flat + $1.75/mile |
 | Location | [ASSUMPTION] | North Carolina "believed". A web search found **no** North Carolina Secretary of State registration under the exact name "Doz and Co Care LLC" (nearest result was an unrelated entity). The name may be registered differently or elsewhere. **Not verified.** |
-| Branding | [OWNER] | Logo supplied (blue heart, orange hands). Not relevant to the build decision; usable on reports and driver pages later |
+| Branding | [OWNER] | Updated logo supplied on 2026-10-16: navy and green, a wheelchair-accessible van, and "NEMT". An earlier version used blue and orange. Not relevant to the build decision; used in the app mockups |
 
 ---
 
@@ -63,7 +63,7 @@
 
 | # | Unknown | Why it matters |
 |---|---|---|
-| U1 | Medical (NEMT/Medicaid) vs non-medical service | Decides HIPAA exposure, enrolment, broker systems, software shortlist |
+| U1 | Confirm NEMT (logo and website say yes; one earlier note said non-medical), and which payers or brokers | Decides HIPAA exposure, enrolment, broker systems, software shortlist |
 | U2 | State and licensing | Rules are state-specific |
 | U3 | Number of transportation drivers (6–10 is a guess) | Per-driver pricing, scope |
 | U4 | Trips per day/week/month | Single biggest driver of whether software pays back |

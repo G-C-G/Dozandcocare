@@ -23,7 +23,7 @@ Run it: open `app/index.html`. Test it: `NODE_PATH=$(npm root -g) node tests/ui.
 
 ## What changed
 
-- **Design system** (`app/styles.css`): spacing scale 4/8/12/16/24/32/40/48, navy and orange from the logo, status always shown as icon plus word, 48px controls, visible focus, reduced-motion respected. Text and background pairs are checked for WCAG AA contrast in the tests.
+- **Design system** (`app/styles.css`): spacing scale 4/8/12/16/24/32/40/48, navy and green from the updated NEMT logo (the app was first built with the earlier blue and orange logo), status always shown as icon plus word, 48px controls, visible focus, reduced-motion respected. Text and background pairs are checked for WCAG AA contrast in the tests.
 - **Driver (phone):** Home, My trips, Available (only when the office allows claiming), History, Help. One action per trip stage. Confirmation after every save ("Trip started at 8:16 AM"). Waiting time is recorded with a reason and a running timer. No money amounts are shown to drivers.
 - **Office:** Overview (needs your attention first, then six status tiles with definitions), Trips (search, filters, table on desktop, cards on phones), full trip record, Drivers, Contracts, Import trips, Help.
 - **Trip record:** the financial section shows flat fee, miles times rate, and the total, labelled "estimated" until approved, and never as profit. The mileage check applies a stated rule (default 10%) and requires a written reason to resolve a difference. Recorded waiting is kept separate from billable waiting.
