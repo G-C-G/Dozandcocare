@@ -36,7 +36,8 @@ var DEMO = {
     {id:'T-2007',time:T(13,0),pax:'P-060',pickup:'60 Mill Rd',drop:'12 Elm St',pts:PATHS[1],driver:'D2',contract:'B',note:'Passenger uses a walker.'},
     {id:'T-2008',time:T(9,50),pax:'P-018',pickup:'300 Market St',drop:'15 River Rd',pts:PATHS[3],driver:null,contract:'A'}
   ],
-  importSample: 'date,time,passenger_ref,pickup,destination,contract\n2026-10-15,12:15,P-101,22 Elm St,400 Oak Ave,A\n2026-10-15,12:45,P-102,8 Mill Rd,90 Harbor Ln,B\n2026-10-16,08:30,P-103,15 River Rd,70 Market St,\n2026-10-15,11:00,P-040,12 River Rd,77 Market St,A\n2026-10-15,25:90,P-104,1 Elm St,2 Oak Ave,A\n2026-10-15,14:00,P-105,3 Mill Rd,,B\n2026-10-15,14:30,P-106,5 Elm St,6 Oak Ave,C'
+  importSample: 'date,time,passenger_ref,pickup,destination,contract\n2026-10-15,12:15,P-101,22 Elm St,400 Oak Ave,A\n2026-10-15,12:45,P-102,8 Mill Rd,90 Harbor Ln,B\n2026-10-16,08:30,P-103,15 River Rd,70 Market St,\n2026-10-15,11:00,P-040,12 River Rd,77 Market St,A\n2026-10-15,25:90,P-104,1 Elm St,2 Oak Ave,A\n2026-10-15,14:00,P-105,3 Mill Rd,,B\n2026-10-15,14:30,P-106,5 Elm St,6 Oak Ave,C',
+  importSampleLean: 'trip_id,date,time,contract,authorised_miles\nBR-20001,2026-10-15,12:15,A,8.2\nBR-20002,2026-10-15,12:45,B,12\nBR-20003,2026-10-16,08:30,,6.5\nT-2005,2026-10-15,11:00,A,9\nBR-20004,2026-10-15,25:90,A,5\nBR-20005,2026-10-15,14:00,B,abc\nBR-20006,2026-10-15,14:30,C,5'
 };
 
 /* ================= helpers ================= */
@@ -57,6 +58,13 @@ var S, SIM = {speed: 30, base: 0, real: 0};
 function now() { return SIM.base + (performance.now() - SIM.real) / 1000 * SIM.speed; }
 function setSpeed(v) { SIM.base = now(); SIM.real = performance.now(); SIM.speed = v; }
 var DRIVERS = [];
+var MODE_KEY = 'dozcare.mode';
+function loadMode() { try { var m = localStorage.getItem(MODE_KEY); if (m === 'full' || m === 'calc') return m; } catch (e) {} return 'calc'; }
+function saveMode() { try { localStorage.setItem(MODE_KEY, S.dataMode); } catch (e) {} }
+function lean() { return S.dataMode === 'calc'; }
+function basisLbl() { return lean() ? 'Authorised miles (broker)' : 'Map estimate'; }
+function routeCell(t) { return lean() ? (t.auth != null ? 'Authorised ' + t.auth.toFixed(1) + ' mi' : 'No authorised miles') : esc(t.pickup) + ' → ' + esc(t.drop); }
+function subline(t) { return lean() ? (t.auth != null ? 'Authorised ' + t.auth.toFixed(1) + ' mi' : 'No authorised miles') : 'Passenger ' + esc(t.pax) + ' · ' + esc(t.id); }
 function drvName(id) { for (var i = 0; i < DRIVERS.length; i++) if (DRIVERS[i].id === id) return DRIVERS[i].name; return 'Unassigned'; }
 function nextTripId() { S.tripSeq++; return 'T-' + (3000 + S.tripSeq); }
 function byId(id) { for (var i = 0; i < S.trips.length; i++) if (S.trips[i].id === id) return S.trips[i]; return null; }
@@ -65,7 +73,7 @@ function log(t, label, detail, actor, kind) { t.log.push({t: now(), label: label
 function mkTrip(o) {
   var t = {id: o.id, date: o.date || '2026-10-15', time: o.time, pax: o.pax, pickup: o.pickup, drop: o.drop, pts: o.pts, note: o.note || '',
     driver: o.driver || null, contract: o.contract || null, contractBy: o.contract ? 'office' : null, contractOk: true,
-    phase: 'assigned', odoS: null, odoE: null, progress: 0, moving: 0, tripStart: null, tripEnd: null, mapMi: null,
+    phase: 'assigned', odoS: null, odoE: null, progress: 0, moving: 0, tripStart: null, tripEnd: null, mapMi: null, auth: o.auth != null ? o.auth : null,
     waits: [], wait: null, log: [], approved: false, resolved: null, problem: null, problemOpen: false, atDrop: false, lastMsg: ''};
   t.mi = Math.round(plen(t.pts) * SC * 10) / 10;
   if (o.done) {
@@ -81,12 +89,14 @@ function mkTrip(o) {
   return t;
 }
 function init() {
+  var dm = (S && S.dataMode) || loadMode();
   DRIVERS = JSON.parse(JSON.stringify(DEMO.drivers));
   SIM.base = DEMO.startClock; SIM.real = performance.now();
   S = {role: S ? S.role : 'driver', dTab: 'home', dTrip: null, dFrom: 'home', aView: 'overview', aTrip: null, f: {q: '', driver: '', contract: '', status: '', date: 'all'},
     trips: DEMO.trips.map(mkTrip), rates: JSON.parse(JSON.stringify(DEMO.rates)), mode: DEMO.settings.mode, tol: DEMO.settings.tol,
-    drivers: DRIVERS, ob: (S && S.ob) || loadOb(), tourIdx: 0, tourReplay: false, wizSub: '', wrongInfo: false, drvImp: {text: 'name,contact', result: null}, tripSeq: 0,
-    busy: false, err: null, msg: '', fail: null, race: false, claimLog: [], imp: {text: DEMO.importSample, result: null, last: null}, lastKey: '', fieldErr: {}};
+    dataMode: dm, drivers: DRIVERS, ob: (S && S.ob) || loadOb(), tourIdx: 0, tourReplay: false, wizSub: '', wrongInfo: false, drvImp: {text: 'name,contact', result: null}, tripSeq: 0,
+    busy: false, err: null, msg: '', fail: null, race: false, claimLog: [], imp: {text: dm === 'calc' ? DEMO.importSampleLean : DEMO.importSample, result: null, last: null}, lastKey: '', fieldErr: {}};
+  if (lean()) S.trips.forEach(function (t) { t.pax = ''; t.pickup = ''; t.drop = ''; t.note = ''; t.auth = t.mapMi != null ? t.mapMi : Math.round(t.mi * 10) / 10; });
   render();
 }
 
@@ -101,7 +111,7 @@ function reasons(t) {
   if (t.problem && t.problemOpen) r.push('Driver reported a problem: “' + t.problem + '”');
   if (!t.contract) r.push(t.phase === 'done' ? 'No contract is assigned to this completed trip' : 'No contract is assigned yet');
   else if (t.contractBy === 'driver' && !t.contractOk) r.push('The driver chose this contract. Confirm it is correct');
-  if (t.phase === 'done' && t.odoE != null && !t.resolved && variance(t) > S.tol / 100) r.push('Odometer distance differs from the map estimate by ' + Math.round(variance(t) * 100) + '%, above the ' + S.tol + '% limit');
+  if (t.phase === 'done' && t.odoE != null && !t.resolved && variance(t) > S.tol / 100) r.push('Odometer distance differs from the ' + basisLbl().toLowerCase() + ' by ' + Math.round(variance(t) * 100) + '%, above the ' + S.tol + '% limit');
   return r;
 }
 function statusOf(t) {
@@ -160,8 +170,8 @@ function mapHtml(t) { return '<div class="mapwrap"><svg viewBox="0 20 400 290" r
 var DID = DEMO.driverId;
 function myOpen() { return S.trips.filter(function (t) { return t.driver === DID && t.phase !== 'done'; }).sort(function (a, b) { return a.time - b.time; }); }
 function stageText(t) { return {assigned: 'Not started', arrived: t.wait ? 'Waiting at pickup' : 'At pickup', inTrip: t.wait ? 'Waiting' : 'On the trip', ending: 'Finishing', done: 'Submitted'}[t.phase]; }
-function routeHtml(t) { return '<div class="route"><span class="dot"></span><div><span class="muted small">Pickup</span><div class="big">' + esc(t.pickup) + '</div></div><span class="dot d"></span><div><span class="muted small">Destination</span><div class="big">' + esc(t.drop) + '</div></div></div>'; }
-function tripCard(t, from) { return '<button type="button" class="tripcard" data-a="openTrip" data-id="' + t.id + '" data-from="' + from + '"><div class="row"><span class="big num">' + clock(t.time) + '</span><span class="badge b-info">' + esc(stageText(t)) + '</span></div>' + routeHtml(t) + '<span class="muted small">Passenger ' + esc(t.pax) + ' · ' + esc(t.id) + '</span></button>'; }
+function routeHtml(t, brief) { if (lean()) return brief ? '<div class="big">Trip ' + esc(t.id) + '</div>' : '<div><span class="muted small">Trip ID</span><div class="big">' + esc(t.id) + '</div><p class="muted small" style="margin-top:4px">Get the pickup and destination from the broker\'s system. This app does not store them.</p></div>'; return '<div class="route"><span class="dot"></span><div><span class="muted small">Pickup</span><div class="big">' + esc(t.pickup) + '</div></div><span class="dot d"></span><div><span class="muted small">Destination</span><div class="big">' + esc(t.drop) + '</div></div></div>'; }
+function tripCard(t, from) { return '<button type="button" class="tripcard" data-a="openTrip" data-id="' + t.id + '" data-from="' + from + '"><div class="row"><span class="big num">' + clock(t.time) + '</span><span class="badge b-info">' + esc(stageText(t)) + '</span></div>' + routeHtml(t, 1) + '<span class="muted small">' + subline(t) + '</span></button>'; }
 
 function driverHome() {
   var mine = myOpen(), active = mine.filter(function (t) { return t.phase !== 'assigned'; })[0], next = active || mine[0];
@@ -170,8 +180,8 @@ function driverHome() {
     h += '<div class="card empty"><h2>You do not have any trips assigned right now</h2><p class="muted">New assignments will appear here.' + (S.mode === 'claim' ? ' You can also pick up open jobs from the Available tab.' : '') + '</p>' + (S.mode === 'claim' ? '<button type="button" class="btn navy" data-a="tab" data-tab="avail">See available jobs</button>' : '') + '</div>';
   } else {
     h += '<section class="stack tight" aria-labelledby="nx"><h2 id="nx">' + (active ? 'Your current trip' : 'Your next trip') + '</h2>' +
-      '<div class="card stack"><div class="row"><span class="big num">' + clock(next.time) + '</span><span class="muted">' + (next.phase === 'assigned' ? 'Pickup ' + rel(next) : esc(stageText(next))) + '</span></div>' + routeHtml(next) +
-      '<p class="muted small">Passenger ' + esc(next.pax) + (next.note ? ' · ' + esc(next.note) : '') + '</p>' + (next.problem && next.problemOpen ? '' : '') +
+      '<div class="card stack"><div class="row"><span class="big num">' + clock(next.time) + '</span><span class="muted">' + (next.phase === 'assigned' ? 'Pickup ' + rel(next) : esc(stageText(next))) + '</span></div>' + routeHtml(next, 1) +
+      '<p class="muted small">' + (lean() ? subline(next) : 'Passenger ' + esc(next.pax) + (next.note ? ' · ' + esc(next.note) : '')) + '</p>' + (next.problem && next.problemOpen ? '' : '') +
       '<button type="button" class="btn primary block" data-a="openTrip" data-id="' + next.id + '" data-from="home">' + (active ? 'Continue trip' : 'View trip') + '</button></div></section>';
     var later = mine.filter(function (t) { return t !== next; });
     if (later.length) h += '<p class="muted">' + later.length + ' more trip' + (later.length > 1 ? 's' : '') + ' later today. <button type="button" class="link" data-a="tab" data-tab="trips">See all my trips</button></p>';
@@ -191,16 +201,16 @@ function driverAvail() {
   if (S.err) h += '<div class="msg err" role="alert"><span aria-hidden="true">⚠</span><span>' + esc(S.err) + '</span></div>';
   if (S.msg) h += '<div class="msg ok"><span aria-hidden="true">✓</span><span>' + esc(S.msg) + '</span></div>';
   if (!open.length) return h + '<div class="card empty"><h2>No open jobs right now</h2><p class="muted">New jobs appear here when the office posts them.</p><button type="button" class="btn second" data-a="refresh">Refresh</button></div>';
-  h += '<div class="stack">' + ok.map(function (x) { var t = x.t; return '<div class="card stack"><div class="row"><span class="big num">' + clock(t.time) + '</span><span class="muted small">About ' + t.mi.toFixed(0) + ' mi · ' + esc(t.id) + '</span></div>' + routeHtml(t) + btn('Take this trip', 'claim', 'navy', 'data-id="' + t.id + '"') + '</div>'; }).join('') + '</div>';
+  h += '<div class="stack">' + ok.map(function (x) { var t = x.t; return '<div class="card stack"><div class="row"><span class="big num">' + clock(t.time) + '</span><span class="muted small">' + (lean() ? (t.auth != null ? 'Authorised ' + t.auth.toFixed(1) + ' mi' : 'No authorised miles') : 'About ' + t.mi.toFixed(0) + ' mi') + ' · ' + esc(t.id) + '</span></div>' + routeHtml(t, 1) + btn('Take this trip', 'claim', 'navy', 'data-id="' + t.id + '"') + '</div>'; }).join('') + '</div>';
   if (!ok.length) h += '<div class="msg info"><span aria-hidden="true">i</span><span>None of the open jobs fit your schedule right now.</span></div>';
-  if (no.length) h += '<section class="stack tight"><h2>Not available to you</h2>' + no.map(function (x) { var t = x.t; return '<div class="tripcard off"><div class="row"><span class="big num">' + clock(t.time) + '</span><span class="badge b-neutral">Overlaps your ' + clock(x.c.time) + ' trip</span></div><div class="muted">' + esc(t.pickup) + ' → ' + esc(t.drop) + '</div></div>'; }).join('') + '</section>';
+  if (no.length) h += '<section class="stack tight"><h2>Not available to you</h2>' + no.map(function (x) { var t = x.t; return '<div class="tripcard off"><div class="row"><span class="big num">' + clock(t.time) + '</span><span class="badge b-neutral">Overlaps your ' + clock(x.c.time) + ' trip</span></div><div class="muted">' + routeCell(t) + '</div></div>'; }).join('') + '</section>';
   return h + '<button type="button" class="btn quiet" data-a="refresh">Refresh list</button>';
 }
 function driverHistory() {
   var done = S.trips.filter(function (t) { return t.driver === DID && t.phase === 'done'; });
   var h = '<h1 id="h1">History</h1>';
   if (!done.length) return h + '<div class="card empty"><h2>Nothing yet</h2><p class="muted">Trips you complete will be listed here.</p></div>';
-  return h + '<div class="stack">' + done.map(function (t) { return '<div class="card stack tight"><div class="row"><span class="big">' + clock(t.time) + ' · ' + esc(t.id) + '</span><span class="badge ' + (t.approved ? 'b-ok' : 'b-info') + '"><i aria-hidden="true">' + (t.approved ? '✓' : '→') + '</i>' + (t.approved ? 'Approved' : 'Sent to office') + '</span></div><div class="muted">' + esc(t.pickup) + ' → ' + esc(t.drop) + '</div><div class="muted small">' + mi(odoMiles(t)) + ' · waited ' + dur(waitTotal(t)) + '</div></div>'; }).join('') + '</div>';
+  return h + '<div class="stack">' + done.map(function (t) { return '<div class="card stack tight"><div class="row"><span class="big">' + clock(t.time) + ' · ' + esc(t.id) + '</span><span class="badge ' + (t.approved ? 'b-ok' : 'b-info') + '"><i aria-hidden="true">' + (t.approved ? '✓' : '→') + '</i>' + (t.approved ? 'Approved' : 'Sent to office') + '</span></div><div class="muted">' + routeCell(t) + '</div><div class="muted small">' + mi(odoMiles(t)) + ' · waited ' + dur(waitTotal(t)) + '</div></div>'; }).join('') + '</div>';
 }
 function reasonSelect() { return '<div class="field"><label for="why">Reason for waiting</label><select id="why"><option>Passenger not ready</option><option>At appointment</option><option>Traffic or road closure</option><option>Other</option></select><p class="help">Record waiting time according to the company\'s approved procedure.</p></div>'; }
 function fieldErr(id) { return S.fieldErr[id] ? '<p class="error" id="' + id + 'E">' + esc(S.fieldErr[id]) + '</p>' : ''; }
@@ -211,7 +221,7 @@ function driverTrip(t) {
   h += '<div><div class="steps" aria-hidden="true">' + [0, 1, 2, 3].map(function (i) { return '<span class="' + (i < cur ? 'd' : i === cur ? 'c' : '') + '"></span>'; }).join('') + '</div><p class="muted small" style="margin-top:4px">' + (t.phase === 'done' ? 'All steps complete' : 'Step ' + (cur + 1) + ' of 4: ' + lab[cur]) + '</p></div>';
   if (S.err) h += '<div class="msg err" role="alert"><span aria-hidden="true">⚠</span><span>' + esc(S.err) + '</span></div>';
   else if (t.lastMsg) h += '<div class="msg ok"><span aria-hidden="true">✓</span><span>' + esc(t.lastMsg) + '</span></div>';
-  h += '<div class="card stack">' + routeHtml(t) + '<dl class="kv"><dt>Passenger</dt><dd>' + esc(t.pax) + '</dd>' + (t.note ? '<dt>Note</dt><dd>' + esc(t.note) + '</dd>' : '') + '</dl>' + (t.phase === 'assigned' ? '<a class="btn quiet" style="align-self:flex-start" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(t.pickup) + '">Open directions</a>' : '') + '</div>';
+  h += '<div class="card stack">' + routeHtml(t) + (lean() ? '' : '<dl class="kv"><dt>Passenger</dt><dd>' + esc(t.pax) + '</dd>' + (t.note ? '<dt>Note</dt><dd>' + esc(t.note) + '</dd>' : '') + '</dl>') + (t.phase === 'assigned' && !lean() ? '<a class="btn quiet" style="align-self:flex-start" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(t.pickup) + '">Open directions</a>' : '') + '</div>';
   var bar = '';
   if (t.phase === 'assigned') bar = btn('I have arrived at pickup', 'arrive');
   else if (t.phase === 'arrived') {
@@ -224,20 +234,20 @@ function driverTrip(t) {
     bar = t.wait ? btn('Passenger is ready', 'resume') : btn('Start trip', 'start');
   } else if (t.phase === 'inTrip') {
     if (t.wait) h += '<div class="waitbox" role="timer"><span>Waiting</span><b id="wT">' + dur(now() - t.wait.s) + '</b><span>' + esc(t.wait.why) + '</span></div>';
-    h += mapHtml(t) + '<div class="stats"><div class="stat"><span>Trip time</span><b id="sT">' + dur(now() - t.tripStart) + '</b></div><div class="stat"><span>Driving</span><b id="sM">' + dur(t.moving) + '</b></div><div class="stat"><span>Waiting</span><b id="sW">' + dur(waitTotal(t)) + '</b></div><div class="stat"><span>Route distance</span><b id="sG">' + (t.mi * t.progress).toFixed(1) + '</b></div></div>';
+    h += (lean() ? '' : mapHtml(t)) + '<div class="stats"><div class="stat"><span>Trip time</span><b id="sT">' + dur(now() - t.tripStart) + '</b></div><div class="stat"><span>Driving</span><b id="sM">' + dur(t.moving) + '</b></div><div class="stat"><span>Waiting</span><b id="sW">' + dur(waitTotal(t)) + '</b></div><div class="stat"><span>' + (lean() ? 'Authorised miles' : 'Route distance') + '</span><b id="sG">' + (lean() ? (t.auth != null ? t.auth.toFixed(1) : '-') : (t.mi * t.progress).toFixed(1)) + '</b></div></div>';
     if (t.atDrop && !t.wait) h += '<div class="msg info"><span aria-hidden="true">i</span><span>You have reached the destination.</span></div>';
     if (!t.wait) h += '<div class="card stack tight"><h3>Stopping for a while?</h3>' + reasonSelect() + btn('Pause and record waiting', 'wait', 'second') + '</div>';
     bar = t.wait ? btn('Resume trip', 'resume') : btn('End trip', 'end');
   } else if (t.phase === 'ending') {
     var oe = S.fieldErr.odoE;
-    h += '<div class="stats"><div class="stat"><span>Start odometer</span><b>' + t.odoS.toFixed(1) + '</b></div><div class="stat"><span>Route distance</span><b>' + (t.mi * t.progress).toFixed(1) + '</b></div></div>';
+    h += '<div class="stats"><div class="stat"><span>Start odometer</span><b>' + t.odoS.toFixed(1) + '</b></div><div class="stat"><span>' + (lean() ? 'Authorised miles' : 'Route distance') + '</span><b>' + (lean() ? (t.auth != null ? t.auth.toFixed(1) : '-') : (t.mi * t.progress).toFixed(1)) + '</b></div></div>';
     h += '<div class="field card"><label for="odoE">Odometer reading now (miles)</label><input id="odoE" type="number" inputmode="decimal" step="0.1" min="0" placeholder="For example ' + (t.odoS + 10.5).toFixed(1) + '" ' + (oe ? 'aria-invalid="true" aria-describedby="odoEE"' : '') + '><p class="help">Record the vehicle\'s odometer reading at the end of the trip. The office checks the mileage afterwards.</p>' + fieldErr('odoE') + '</div>';
     bar = btn('Submit trip', 'submit');
   } else {
     h += '<div class="card stack"><h2>What happens next</h2><p>The office checks the mileage and approves the trip. You do not need to do anything else.</p><dl class="kv"><dt>Distance</dt><dd class="num">' + mi(odoMiles(t)) + '</dd><dt>Trip time</dt><dd class="num">' + dur(t.tripEnd - t.tripStart) + '</dd><dt>Waiting</dt><dd class="num">' + dur(waitTotal(t)) + '</dd></dl></div>';
     bar = '<button type="button" class="btn primary block" data-a="home">Back to home</button>';
   }
-  h += '<details class="card"><summary style="font-weight:600;min-height:32px;cursor:pointer">Report a problem with this trip</summary><div class="stack" style="margin-top:12px"><div class="field"><label for="prob">What happened?</label><textarea id="prob"></textarea></div>' + btn('Send to office', 'report', 'second') + '</div></details>';
+  h += '<details class="card"><summary style="font-weight:600;min-height:32px;cursor:pointer">Report a problem with this trip</summary><div class="stack" style="margin-top:12px"><div class="field"><label for="prob">What happened?</label><textarea id="prob"></textarea><p class="help">Do not include passenger names or medical details.</p></div>' + btn('Send to office', 'report', 'second') + '</div></details>';
   return {html: h, bar: bar};
 }
 function driverShell() {
@@ -288,21 +298,21 @@ function filtered() {
 function sel(id, label, opts, val) { return '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '">' + opts.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === val ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></div>'; }
 function tripsView() {
   var f = S.f, h = '<div class="row"><h1 id="h1">Trips</h1><button type="button" class="btn navy sm" data-a="nav" data-view="newtrip">Add a trip</button></div>';
-  h += '<div class="card"><form class="filters" role="search" onsubmit="return false"><div class="field"><label for="fq">Search</label><input type="search" id="fq" value="' + esc(f.q) + '" placeholder="Trip ID, passenger or address"></div>' +
+  h += '<div class="card"><form class="filters" role="search" onsubmit="return false"><div class="field"><label for="fq">Search</label><input type="search" id="fq" value="' + esc(f.q) + '" placeholder="' + (lean() ? 'Trip ID' : 'Trip ID, passenger or address') + '"></div>' +
     sel('fd', 'Driver', [['', 'All drivers'], ['__none', 'Unassigned']].concat(DRIVERS.map(function (d) { return [d.id, d.name]; })), f.driver) +
     sel('fc', 'Contract', [['', 'All'], ['A', 'Contract A'], ['B', 'Contract B'], ['__none', 'No contract']], f.contract) +
     sel('fs', 'Status', [['', 'All statuses']].concat(Object.keys(BADGE).map(function (k) { return [k, k]; })), f.status) +
     sel('fdt', 'Date', [['all', 'All dates'], ['today', 'Today']], f.date) + '</form></div>';
   h += '<div class="row"><p class="muted" id="count" aria-live="polite"></p><button type="button" class="btn quiet" data-a="clearF">Clear filters</button></div>';
-  h += '<div class="card tablewrap" style="padding:0"><table><thead><tr><th>Trip</th><th>Pickup</th><th>Route</th><th>Driver</th><th>Contract</th><th>Status</th><th>Review</th></tr></thead><tbody id="rows"></tbody></table></div><div class="cards" id="cardrows"></div>';
+  h += '<div class="card tablewrap" style="padding:0"><table><thead><tr><th>Trip</th><th>Pickup</th><th>' + (lean() ? 'Authorised miles' : 'Route') + '</th><th>Driver</th><th>Contract</th><th>Status</th><th>Review</th></tr></thead><tbody id="rows"></tbody></table></div><div class="cards" id="cardrows"></div>';
   return h;
 }
 function renderRows() {
   var list = filtered(), rb = $('rows'), cb = $('cardrows'); if (!rb) return;
   $('count').textContent = list.length + ' trip' + (list.length === 1 ? '' : 's') + ' shown';
   if (!list.length) { var e = '<div class="empty"><h2>No trips match</h2><p class="muted">Try clearing a filter or searching for something else.</p></div>'; rb.innerHTML = '<tr><td colspan="7">' + e + '</td></tr>'; cb.innerHTML = '<div class="card">' + e + '</div>'; return; }
-  rb.innerHTML = list.map(function (t) { var r = reasons(t).length; return '<tr class="go" data-a="openTrip" data-id="' + t.id + '"><td><button type="button" class="link" data-a="openTrip" data-id="' + t.id + '">' + t.id + '</button><div class="muted small">' + esc(t.pax) + '</div></td><td class="num">' + clock(t.time) + (t.date !== '2026-10-15' ? '<div class="muted small">' + t.date + '</div>' : '') + '</td><td>' + esc(t.pickup) + ' → ' + esc(t.drop) + '</td><td>' + esc(drvName(t.driver)) + '</td><td>' + (t.contract ? 'Contract ' + t.contract : '<span class="muted">None</span>') + '</td><td>' + badge(statusOf(t)) + '</td><td>' + (r ? '<span class="badge b-warn"><i aria-hidden="true">!</i>' + r + ' to check</span>' : '<span class="muted">None</span>') + '</td></tr>'; }).join('');
-  cb.innerHTML = list.map(function (t) { var r = reasons(t).length; return '<button type="button" class="tripcard" data-a="openTrip" data-id="' + t.id + '"><div class="row"><b>' + t.id + ' · ' + clock(t.time) + '</b>' + badge(statusOf(t)) + '</div><div>' + esc(t.pickup) + ' → ' + esc(t.drop) + '</div><div class="muted small">' + esc(drvName(t.driver)) + ' · ' + (t.contract ? 'Contract ' + t.contract : 'No contract') + (r ? ' · ' + r + ' to check' : '') + '</div></button>'; }).join('');
+  rb.innerHTML = list.map(function (t) { var r = reasons(t).length; return '<tr class="go" data-a="openTrip" data-id="' + t.id + '"><td><button type="button" class="link" data-a="openTrip" data-id="' + t.id + '">' + t.id + '</button><div class="muted small">' + esc(t.pax) + '</div></td><td class="num">' + clock(t.time) + (t.date !== '2026-10-15' ? '<div class="muted small">' + t.date + '</div>' : '') + '</td><td>' + routeCell(t) + '</td><td>' + esc(drvName(t.driver)) + '</td><td>' + (t.contract ? 'Contract ' + t.contract : '<span class="muted">None</span>') + '</td><td>' + badge(statusOf(t)) + '</td><td>' + (r ? '<span class="badge b-warn"><i aria-hidden="true">!</i>' + r + ' to check</span>' : '<span class="muted">None</span>') + '</td></tr>'; }).join('');
+  cb.innerHTML = list.map(function (t) { var r = reasons(t).length; return '<button type="button" class="tripcard" data-a="openTrip" data-id="' + t.id + '"><div class="row"><b>' + t.id + ' · ' + clock(t.time) + '</b>' + badge(statusOf(t)) + '</div><div>' + routeCell(t) + '</div><div class="muted small">' + esc(drvName(t.driver)) + ' · ' + (t.contract ? 'Contract ' + t.contract : 'No contract') + (r ? ' · ' + r + ' to check' : '') + '</div></button>'; }).join('');
 }
 function section(title, body) { return '<section class="sec card" aria-label="' + esc(title) + '"><h2>' + title + '</h2>' + body + '</section>'; }
 function recordView(t) {
@@ -311,7 +321,7 @@ function recordView(t) {
   if (S.msg) h += '<div class="msg ok"><span aria-hidden="true">✓</span><span>' + esc(S.msg) + '</span></div>';
   if (rs.length) h += '<div class="msg warn"><span aria-hidden="true">!</span><div><b>Needs your attention</b><ul style="margin:4px 0 0;padding-left:20px">' + rs.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul></div></div>';
   // A. summary
-  var a = '<dl class="kv"><dt>Date and pickup</dt><dd>' + t.date + ' at ' + clock(t.time) + '</dd><dt>Pickup</dt><dd>' + esc(t.pickup) + '</dd><dt>Destination</dt><dd>' + esc(t.drop) + '</dd><dt>Passenger</dt><dd>' + esc(t.pax) + '</dd><dt>Driver</dt><dd>' + esc(drvName(t.driver)) + '</dd></dl>';
+  var a = '<dl class="kv"><dt>Date and pickup</dt><dd>' + t.date + ' at ' + clock(t.time) + '</dd>' + (lean() ? '<dt>Authorised miles</dt><dd>' + (t.auth != null ? mi(t.auth) : 'None supplied') + '</dd>' : '<dt>Pickup</dt><dd>' + esc(t.pickup) + '</dd><dt>Destination</dt><dd>' + esc(t.drop) + '</dd><dt>Passenger</dt><dd>' + esc(t.pax) + '</dd>') + '<dt>Driver</dt><dd>' + esc(drvName(t.driver)) + '</dd></dl>';
   var locked = t.approved;
   a += '<div class="two"><div class="stack tight">' + sel('asg', 'Assign driver', [['', 'Unassigned']].concat(DRIVERS.filter(function (d) { return d.status === 'Active' || d.id === t.driver; }).map(function (d) { return [d.id, d.name]; })), t.driver || '') + btn('Save driver', 'assign', 'second', locked || t.phase !== 'assigned' ? 'disabled' : '') + '</div><div class="stack tight">' + sel('ctr', 'Contract', [['', 'Not assigned'], ['A', 'Contract A'], ['B', 'Contract B']], t.contract || '') + btn('Save contract', 'setContract', 'second', locked ? 'disabled' : '') + '</div></div>' + (locked ? '<p class="muted small">Approved trips are locked.</p>' : t.phase !== 'assigned' ? '<p class="muted small">The driver has started this trip, so the driver can no longer be changed here.</p>' : '');
   h += section('Trip summary', a);
@@ -324,12 +334,14 @@ function recordView(t) {
   // C. mileage
   var m = odoMiles(t), mv = '';
   if (m == null) mv = '<p class="muted">Mileage appears here after the driver submits the trip.</p>';
-  else {
+  else if (t.mapMi == null) {
+    mv = '<dl class="kv"><dt>Start odometer</dt><dd class="num">' + t.odoS.toFixed(1) + '</dd><dt>End odometer</dt><dd class="num">' + t.odoE.toFixed(1) + '</dd><dt>Odometer distance</dt><dd class="num">' + mi(m) + '</dd></dl><div class="msg info"><span aria-hidden="true">i</span><span>No authorised miles were supplied, so there is nothing to compare the odometer with.</span></div>';
+  } else {
     var diff = Math.abs(m - t.mapMi), pc = Math.round(variance(t) * 100), over = variance(t) > S.tol / 100;
-    mv = '<dl class="kv"><dt>Start odometer</dt><dd class="num">' + t.odoS.toFixed(1) + '</dd><dt>End odometer</dt><dd class="num">' + t.odoE.toFixed(1) + '</dd><dt>Odometer distance</dt><dd class="num">' + mi(m) + '</dd><dt>Map estimate</dt><dd class="num">' + mi(t.mapMi) + '</dd><dt>Difference</dt><dd class="num">' + mi(diff) + ' (' + pc + '%)</dd></dl>' +
+    mv = '<dl class="kv"><dt>Start odometer</dt><dd class="num">' + t.odoS.toFixed(1) + '</dd><dt>End odometer</dt><dd class="num">' + t.odoE.toFixed(1) + '</dd><dt>Odometer distance</dt><dd class="num">' + mi(m) + '</dd><dt>' + basisLbl() + '</dt><dd class="num">' + mi(t.mapMi) + '</dd><dt>Difference</dt><dd class="num">' + mi(diff) + ' (' + pc + '%)</dd></dl>' +
       (t.resolved ? '<div class="msg ok"><span aria-hidden="true">✓</span><span>Resolved by office: ' + mi(t.resolved.miles) + ' approved (' + esc(t.resolved.basis) + '). Reason: ' + esc(t.resolved.note) + '</span></div>' :
        over ? '<div class="msg warn"><span aria-hidden="true">!</span><span>Difference is ' + pc + '%, above the ' + S.tol + '% limit. Decide which distance to bill, and record why.</span></div>' : '<div class="msg ok"><span aria-hidden="true">✓</span><span>Difference is ' + pc + '%, within the ' + S.tol + '% limit.</span></div>');
-    if (over && !t.resolved && !t.approved) mv += '<div class="stack card" style="background:var(--bg)"><h3>Resolve the difference</h3><div class="field"><label for="basis">Distance to approve</label><select id="basis"><option value="odo">Odometer distance (' + mi(m) + ')</option><option value="map">Map estimate (' + mi(t.mapMi) + ')</option><option value="custom">Another value</option></select></div><div class="field"><label for="cust">Other value (miles), only if you chose Another value</label><input id="cust" type="number" step="0.1" min="0"></div><div class="field"><label for="note">Reason (required)</label><textarea id="note"></textarea>' + fieldErr('note') + '</div>' + btn('Approve this distance', 'resolveMi', 'navy') + '</div>';
+    if (over && !t.resolved && !t.approved) mv += '<div class="stack card" style="background:var(--bg)"><h3>Resolve the difference</h3><div class="field"><label for="basis">Distance to approve</label><select id="basis"><option value="odo">Odometer distance (' + mi(m) + ')</option><option value="map">' + basisLbl() + ' (' + mi(t.mapMi) + ')</option><option value="custom">Another value</option></select></div><div class="field"><label for="cust">Other value (miles), only if you chose Another value</label><input id="cust" type="number" step="0.1" min="0"></div><div class="field"><label for="note">Reason (required)</label><textarea id="note"></textarea>' + fieldErr('note') + '</div>' + btn('Approve this distance', 'resolveMi', 'navy') + '</div>';
   }
   h += section('Mileage check', mv + '<p class="muted small">The ' + S.tol + '% limit is a demo setting. Change it under Contracts.</p>');
   // D. waiting
@@ -348,7 +360,31 @@ function recordView(t) {
   h += '<div class="card stack"><h2>Approval</h2><p class="muted">' + (t.approved ? 'This trip is approved for billing.' : ok ? 'All checks passed. Approving marks the trip ready to invoice.' : t.phase !== 'done' ? 'Available after the driver submits the trip.' : 'Resolve the items above first.') + '</p>' + (t.approved ? '' : btn('Approve for billing', 'approve', 'primary', ok ? '' : 'disabled')) + '</div>';
   return h;
 }
+function parseImportLean(text) {
+  var lines = text.split(/\r?\n/).map(function (l, i) { return {n: i + 1, s: l}; }).filter(function (l) { return l.s.trim(); }), res = {good: [], bad: [], dup: [], attn: 0, fatal: ''};
+  if (!lines.length) { res.fatal = 'The file is empty. Paste rows or choose a CSV file.'; return res; }
+  var hd = lines[0].s.split(',').map(function (x) { return x.trim().toLowerCase(); }), need = ['trip_id', 'date', 'time', 'contract', 'authorised_miles'], miss = need.filter(function (n) { return hd.indexOf(n) < 0; });
+  if (miss.length) { res.fatal = 'The first line must list these columns: ' + need.join(', ') + '. Missing: ' + miss.join(', ') + '.'; return res; }
+  res.header = lines[0].s; var seen = {};
+  lines.slice(1).forEach(function (l) {
+    var c = l.s.split(',').map(function (x) { return x.trim(); }), r = {}; hd.forEach(function (k, i) { r[k] = c[i] || ''; });
+    var why = [], tm = /^(\d{1,2}):(\d{2})$/.exec(r.time), av = r.authorised_miles === '' ? null : Number(r.authorised_miles);
+    if (!/^[A-Za-z0-9-]{3,20}$/.test(r.trip_id)) why.push('Trip ID must be 3 to 20 letters, numbers or dashes');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date)) why.push('Date must look like 2026-10-15');
+    if (!tm || +tm[1] > 23 || +tm[2] > 59) why.push('Time must be a real 24-hour time such as 09:30');
+    if (r.contract && ['A', 'B'].indexOf(r.contract.toUpperCase()) < 0) why.push('Contract must be A, B or blank');
+    if (av !== null && !(av > 0)) why.push('Authorised miles must be a number above 0, or blank');
+    if (why.length) { res.bad.push({n: l.n, raw: l.s, why: why.join('. ')}); return; }
+    var key = r.trip_id.toLowerCase(), dupe = S.trips.some(function (t) { return t.id.toLowerCase() === key; }) || seen[key];
+    seen[key] = true;
+    if (dupe) { res.dup.push({n: l.n, raw: l.s}); return; }
+    if (!r.contract) res.attn++;
+    res.good.push({id: r.trip_id, date: r.date, time: +tm[1] * 3600 + +tm[2] * 60, contract: r.contract.toUpperCase() || null, auth: av});
+  });
+  return res;
+}
 function parseImport(text) {
+  if (lean()) return parseImportLean(text);
   var lines = text.split(/\r?\n/).map(function (l, i) { return {n: i + 1, s: l}; }).filter(function (l) { return l.s.trim(); }), res = {good: [], bad: [], dup: [], attn: 0, fatal: ''};
   if (!lines.length) { res.fatal = 'The file is empty. Paste rows or choose a CSV file.'; return res; }
   var hd = lines[0].s.split(',').map(function (x) { return x.trim().toLowerCase(); }), need = ['date', 'time', 'passenger_ref', 'pickup', 'destination', 'contract'], miss = need.filter(function (n) { return hd.indexOf(n) < 0; });
@@ -380,7 +416,8 @@ function contractsView() {
   h += '<section class="card stack" aria-labelledby="rt"><h2 id="rt">Contract rates</h2><div class="msg warn"><span aria-hidden="true">!</span><span>These rates are unconfirmed. Confirm with the owner whether they are revenue, driver pay or both.</span></div><div class="two">';
   ['A', 'B'].forEach(function (k) { h += '<div class="stack tight"><h3>Contract ' + k + '</h3><div class="field"><label for="f' + k + '">Flat fee ($)</label><input id="f' + k + '" type="number" step="0.01" min="0" value="' + S.rates[k].f.toFixed(2) + '" data-rate="' + k + 'f"></div><div class="field"><label for="m' + k + '">Per mile ($)</label><input id="m' + k + '" type="number" step="0.01" min="0" value="' + S.rates[k].m.toFixed(2) + '" data-rate="' + k + 'm"></div></div>'; });
   h += '</div></section><section class="card stack" aria-labelledby="as"><h2 id="as">Job assignment</h2><fieldset class="field"><legend class="sr">Assignment method</legend><label class="choice" for="mClaim"><input type="radio" name="mode" id="mClaim" value="claim" ' + (S.mode === 'claim' ? 'checked' : '') + '> Drivers can take open jobs</label><label class="choice" for="mAssign"><input type="radio" name="mode" id="mAssign" value="assign" ' + (S.mode === 'assign' ? 'checked' : '') + '> The office assigns every job</label></fieldset></section>';
-  h += '<section class="card stack" aria-labelledby="mt"><h2 id="mt">Mileage check</h2><div class="field"><label for="tol">Flag a trip when odometer and map estimate differ by more than (%)</label><input id="tol" type="number" min="1" max="50" value="' + S.tol + '"><p class="help">Flagging only holds the trip for review. It never changes the amount on its own.</p></div></section>';
+  h += '<section class="card stack" aria-labelledby="dm"><h2 id="dm">What this app stores</h2><fieldset class="field"><legend class="sr">Data stored</legend><label class="choice" for="dmCalc"><input type="radio" name="dmode" id="dmCalc" value="calc" ' + (lean() ? 'checked' : '') + '> Calculation only (recommended)</label><p class="help">Trip ID, date, time, contract, driver, odometer and miles. No passenger names, references, addresses or notes.</p><label class="choice" for="dmFull"><input type="radio" name="dmode" id="dmFull" value="full" ' + (!lean() ? 'checked' : '') + '> Full trip details</label><p class="help">Also stores passenger reference, pickup and destination. Check whether HIPAA applies before using real data. Switching restarts the demo data.</p></fieldset></section>';
+  h += '<section class="card stack" aria-labelledby="mt"><h2 id="mt">Mileage check</h2><div class="field"><label for="tol">Flag a trip when odometer and ' + basisLbl().toLowerCase() + ' differ by more than (%)</label><input id="tol" type="number" min="1" max="50" value="' + S.tol + '"><p class="help">Flagging only holds the trip for review. It never changes the amount on its own.</p></div></section>';
   h += '<section class="card stack"><h2>Waiting time</h2><p>Recorded but not charged. Add a rule here once the contracts confirm whether waiting is paid.</p></section>';
   return h;
 }
@@ -441,7 +478,7 @@ function confirmView() {
 function slides() {
   var s = [
     {t: 'Find your trips', x: 'Trips assigned to you are on Home and under My trips. The next one is always shown first.', v: '<div class="mtabs"><span>Home</span><span class="on">My trips</span><span>History</span></div>'},
-    {t: 'See where to go', x: 'Open a trip to see the pickup time, the pickup address and the destination.', v: '<b class="num">9:30 AM</b><div class="route"><span class="dot"></span><div>Example pickup address</div><span class="dot d"></span><div>Example destination</div></div>'}];
+    {t: lean() ? 'See your trip' : 'See where to go', x: lean() ? 'Open a trip to see the pickup time and trip ID. Get the pickup and destination from the broker\'s system.' : 'Open a trip to see the pickup time, the pickup address and the destination.', v: lean() ? '<b class="num">9:30 AM</b><div>Trip ID BR-10001</div>' : '<b class="num">9:30 AM</b><div class="route"><span class="dot"></span><div>Example pickup address</div><span class="dot d"></span><div>Example destination</div></div>'}];
   if (S.mode === 'claim') s.push({t: 'Take an open job', x: 'Under Available you can take jobs that fit your schedule. If someone else takes it first, the app tells you and refreshes the list.', v: '<div class="mbtn navy">Take this trip</div>'});
   s.push({t: 'Arrive and start', x: 'Tap when you reach the pickup. Then enter your odometer reading and tap Start trip.', v: '<div class="mbtn">I have arrived at pickup</div><div class="mbtn" style="margin-top:8px">Start trip</div>'},
     {t: 'Record waiting', x: 'If the passenger is not ready, record the waiting time. Tap again when you can go. The app keeps the time for you.', v: '<div class="mwait"><b class="num">02:14</b>Waiting</div><div class="mbtn" style="margin-top:8px">Resume trip</div>'},
@@ -491,6 +528,8 @@ function newTripView() {
   return '<div class="crumbs"><button type="button" data-a="backTrips">Trips</button> / Add a trip</div><div><h1 id="h1">Add a trip</h1><p class="muted">Use this for a single trip. To add many at once, use Import trips.</p></div>' + flash() + tripForm();
 }
 function tripForm() {
+  if (lean()) return '<div class="card stack">' + fld('ctn', 'Trip ID', 'Use the trip ID from the broker\'s system.', 'text') + fld('ctd', 'Date', 'Format: 2026-10-15', 'text', '2026-10-15') + fld('ctt', 'Pickup time', '24-hour time, for example 14:30', 'text', '14:30') + fld('cta', 'Authorised miles', 'From the broker, if supplied. Leave blank if not.', 'text') +
+    '<div class="field"><label for="ctc">Contract</label><select id="ctc"><option value="">Not sure yet</option><option value="A">Contract A</option><option value="B">Contract B</option></select><p class="help">You can set this later, but the amount cannot be calculated without it.</p></div>' + btn('Add trip', 'createTrip', 'navy') + '</div>';
   return '<div class="card stack">' + fld('ctd', 'Date', 'Format: 2026-10-15', 'text', '2026-10-15') + fld('ctt', 'Pickup time', '24-hour time, for example 14:30', 'text', '14:30') + fld('ctp', 'Passenger reference', 'Use the reference, not the name. For example P-123', 'text') + fld('ctk', 'Pickup address', '', 'text') + fld('ctz', 'Destination', '', 'text') +
     '<div class="field"><label for="ctc">Contract</label><select id="ctc"><option value="">Not sure yet</option><option value="A">Contract A</option><option value="B">Contract B</option></select><p class="help">You can set this later, but the amount cannot be calculated without it.</p></div>' + btn('Add trip', 'createTrip', 'navy') + '</div>';
 }
@@ -538,17 +577,17 @@ function wizard() {
 function tourList() { return '<ul class="card stack tight" style="list-style:none;margin:0;padding:16px">' + [['Overview', 'What needs your attention today.'], ['Trips', 'Every trip, with filters and the full record.'], ['Drivers', 'Add drivers and see who has signed in.'], ['Contracts', 'Rates and rules used in every calculation.'], ['Import trips', 'Add many trips from a spreadsheet, checked first.'], ['Help', 'Questions, fixes, and this setup again.']].map(function (x) { return '<li><b>' + x[0] + '</b><div class="muted">' + x[1] + '</div></li>'; }).join('') + '</ul>'; }
 function setupBanner() { if (essentialsOk()) return ''; var a = S.ob.admin, miss = []; if (!a.orgOk || !a.wfOk) miss.push('organisation and job assignment'); if (!a.contractsOk) miss.push('contract rates'); return '<div class="msg warn"><span aria-hidden="true">!</span><div class="stack tight"><span><b>Setup is not finished.</b> Still to check: ' + miss.join(' and ') + '. Do this before processing real trips.</span><button type="button" class="btn second sm" style="align-self:flex-start" data-a="obA" data-do="resume">Continue setup</button></div></div>'; }
 function importPanel() {
-  var r = S.imp.result, h = '<div class="card stack"><p class="muted small">Not sure how the spreadsheet should look? Start from the template.</p><div class="row" style="justify-content:flex-start"><button type="button" class="btn second sm" data-a="tplUse">Use the example</button><button type="button" class="btn second sm" data-a="tplCopy">Copy template</button><button type="button" class="btn second sm" data-a="tplDownload">Download template</button></div><div class="field"><label for="impfile">CSV file (optional)</label><input id="impfile" type="file" accept=".csv,text/csv"></div><div class="field"><label for="imptext">Rows</label><textarea id="imptext" style="min-height:200px;font-family:var(--mono);font-size:14px">' + esc(S.imp.text) + '</textarea><p class="help">Columns: date, time, passenger_ref, pickup, destination, contract. Date like 2026-10-15, time like 09:30, passenger reference like P-123, contract A, B or blank. Nothing is added until you confirm.</p></div>' + btn('Check rows', 'checkImp', 'navy') + '</div>';
+  var r = S.imp.result, h = '<div class="card stack"><p class="muted small">Not sure how the spreadsheet should look? Start from the template.</p><div class="row" style="justify-content:flex-start"><button type="button" class="btn second sm" data-a="tplUse">Use the example</button><button type="button" class="btn second sm" data-a="tplCopy">Copy template</button><button type="button" class="btn second sm" data-a="tplDownload">Download template</button></div><div class="field"><label for="impfile">CSV file (optional)</label><input id="impfile" type="file" accept=".csv,text/csv"></div><div class="field"><label for="imptext">Rows</label><textarea id="imptext" style="min-height:200px;font-family:var(--mono);font-size:14px">' + esc(S.imp.text) + '</textarea><p class="help">' + (lean() ? 'Columns: trip_id, date, time, contract, authorised_miles. Use the trip ID from the broker\'s system. Do not include passenger names, references or addresses. Contract is A, B or blank. Nothing is added until you confirm.' : 'Columns: date, time, passenger_ref, pickup, destination, contract. Date like 2026-10-15, time like 09:30, passenger reference like P-123, contract A, B or blank. Nothing is added until you confirm.') + '</p></div>' + btn('Check rows', 'checkImp', 'navy') + '</div>';
   if (r) {
     if (r.fatal) return h + '<div class="msg err" role="alert"><span aria-hidden="true">⚠</span><span>' + esc(r.fatal) + '</span></div>';
     h += '<section class="stack" aria-labelledby="ir"><h2 id="ir">Check result</h2><div class="tiles t4"><div class="tile"><span class="l">Ready to import</span><b>' + r.good.length + '</b></div><div class="tile"><span class="l">Rejected</span><b>' + r.bad.length + '</b><span class="def">Fix and check again</span></div><div class="tile"><span class="l">Already in the system</span><b>' + r.dup.length + '</b><span class="def">Skipped as duplicates</span></div><div class="tile"><span class="l">Need a contract</span><b>' + r.attn + '</b><span class="def">Imported with no contract</span></div></div>';
-    if (r.good.length) h += '<div class="card stack tight"><h3>Preview: these trips will be added</h3><div class="tablewrap"><table><thead><tr><th>Date</th><th>Time</th><th>Passenger</th><th>Route</th><th>Contract</th></tr></thead><tbody>' + r.good.slice(0, 10).map(function (g) { return '<tr><td class="num">' + g.date + '</td><td class="num">' + clock(g.time) + '</td><td class="num">' + esc(g.pax) + '</td><td>' + esc(g.pickup) + ' → ' + esc(g.drop) + '</td><td>' + (g.contract || '<span class="muted">None</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>' + (r.good.length > 10 ? '<p class="muted small">and ' + (r.good.length - 10) + ' more</p>' : '') + '</div>';
+    if (r.good.length) h += '<div class="card stack tight"><h3>Preview: these trips will be added</h3><div class="tablewrap"><table><thead><tr><th>' + (lean() ? 'Trip ID' : 'Passenger') + '</th><th>Date</th><th>Time</th><th>' + (lean() ? 'Authorised miles' : 'Route') + '</th><th>Contract</th></tr></thead><tbody>' + r.good.slice(0, 10).map(function (g) { return '<tr><td class="num">' + esc(lean() ? g.id : g.pax) + '</td><td class="num">' + g.date + '</td><td class="num">' + clock(g.time) + '</td><td>' + (lean() ? (g.auth != null ? g.auth.toFixed(1) + ' mi' : 'None') : esc(g.pickup) + ' → ' + esc(g.drop)) + '</td><td>' + (g.contract || '<span class="muted">None</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>' + (r.good.length > 10 ? '<p class="muted small">and ' + (r.good.length - 10) + ' more</p>' : '') + '</div>';
     if (r.bad.length || r.dup.length) h += '<div class="card tablewrap" style="padding:0"><table><thead><tr><th>Line</th><th>Problem</th><th>Row as pasted</th></tr></thead><tbody>' + r.bad.map(function (b) { return '<tr><td class="num">' + b.n + '</td><td>' + pill('Rejected', 'warn', '!') + ' ' + esc(b.why) + '</td><td class="num small">' + esc(b.raw) + '</td></tr>'; }).join('') + r.dup.map(function (b) { return '<tr><td class="num">' + b.n + '</td><td>' + pill('Duplicate', 'neutral', '=') + ' Same trip is already scheduled</td><td class="num small">' + esc(b.raw) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="muted small">Edit the rows above and press Check rows again. You do not need to start over.</p>';
     h += btn('Import ' + r.good.length + ' valid row' + (r.good.length === 1 ? '' : 's'), 'doImp', 'primary', r.good.length ? '' : 'disabled') + '</section>';
   }
   return h;
 }
-var TEMPLATE = 'date,time,passenger_ref,pickup,destination,contract\n2026-10-15,09:30,P-123,100 Example St,200 Sample Ave,A';
+function tpl() { return lean() ? 'trip_id,date,time,contract,authorised_miles\nBR-10001,2026-10-15,09:30,A,10.5' : 'date,time,passenger_ref,pickup,destination,contract\n2026-10-15,09:30,P-123,100 Example St,200 Sample Ave,A'; }
 
 function obDriver(d) {
   var o = S.ob.driver;
@@ -589,6 +628,7 @@ function obAdmin(d, el) {
 function grab() { var o = {}; document.querySelectorAll('#app input[id],#app select[id],#app textarea[id]').forEach(function (e) { if (e.type === 'file') return; o[e.id] = e.type === 'radio' || e.type === 'checkbox' ? e.checked : e.value; }); return o; }
 function render() {
   var vals = grab(), act = document.activeElement, ae = act && act.id, aa = act && act.dataset && act.dataset.a, tr = S.dTrip && byId(S.dTrip), key = [S.role, S.dTab, S.dTrip, tr ? tr.phase + !!tr.wait : '', S.aView, S.aTrip, S.ob.driver.step, S.ob.driver.phase, S.ob.driver.signedIn, S.tourIdx, S.tourReplay, S.ob.admin.step, S.ob.admin.done, S.wizSub].join('|');
+  var dl = document.querySelector('.demoline'); if (dl) dl.textContent = 'Demo · Data stored: ' + (lean() ? 'trip ID, time, contract, driver and miles only' : 'full trip details');
   $('roleDriver').setAttribute('aria-pressed', S.role === 'driver'); $('roleOffice').setAttribute('aria-pressed', S.role === 'office');
   $('app').innerHTML = S.role === 'driver' ? driverShell() : adminShell();
   var same = key === S.lastKey;
@@ -619,7 +659,7 @@ function A(name, el) {
         c.driver = DID; log(c, 'Claimed', 'Driver took the trip from the open list', who); c.lastMsg = 'Trip claimed successfully. You took it at ' + clock(now()) + '.'; S.dTrip = c.id; S.dFrom = 'trips'; return '';
       }); return;
     }
-    case 'arrive': save(function () { t.phase = 'arrived'; log(t, 'Arrived at pickup', t.pickup, who); t.lastMsg = 'Arrival recorded at ' + clock(now()) + '.'; return ''; }); return;
+    case 'arrive': save(function () { t.phase = 'arrived'; log(t, 'Arrived at pickup', lean() ? '' : t.pickup, who); t.lastMsg = 'Arrival recorded at ' + clock(now()) + '.'; return ''; }); return;
     case 'pickC': S.fieldErr = {}; render(); return;
     case 'start': {
       var err = {}, o = num('odoS'), ch = document.querySelector('input[name=dc]:checked');
@@ -635,7 +675,7 @@ function A(name, el) {
     }
     case 'wait': save(function () { var w = $('why'); t.wait = {s: now(), why: w ? w.value : 'Other'}; log(t, 'Stopped to wait', t.wait.why, who, 'wait'); t.lastMsg = 'Waiting started at ' + clock(now()) + '.'; return ''; }); return;
     case 'resume': save(function () { var d = now() - t.wait.s; t.waits.push({s: t.wait.s, e: now(), why: t.wait.why}); t.wait = null; log(t, t.phase === 'inTrip' ? 'Resumed trip' : 'Passenger ready', 'Waited ' + dur(d), who, 'wait'); t.lastMsg = (t.phase === 'inTrip' ? 'Trip resumed' : 'Ready to start') + ' at ' + clock(now()) + '. Waited ' + dur(d) + '.'; return ''; }); return;
-    case 'end': save(function () { t.phase = 'ending'; log(t, 'Reached destination', 'Route distance ' + (t.mi * t.progress).toFixed(1) + ' mi', who); t.lastMsg = ''; return ''; }); return;
+    case 'end': save(function () { t.phase = 'ending'; log(t, 'Reached destination', lean() ? '' : 'Route distance ' + (t.mi * t.progress).toFixed(1) + ' mi', who); t.lastMsg = ''; return ''; }); return;
     case 'submit': {
       var e = num('odoE'); S.fieldErr = {};
       if (e == null) S.fieldErr = {odoE: 'Enter the odometer reading from the dashboard.'};
@@ -643,7 +683,7 @@ function A(name, el) {
       else if (e === t.odoS) S.fieldErr = {odoE: 'This is the same as the starting reading. Check the number and try again.'};
       if (S.fieldErr.odoE) { render(); $('odoE').focus(); announce(S.fieldErr.odoE); return; }
       S.fieldErr = {};
-      save(function () { t.odoE = e; t.mapMi = Math.round(t.mi * Math.min(1, t.progress) * 10) / 10; t.tripEnd = now(); t.phase = 'done'; log(t, 'Trip submitted', 'Odometer ' + e.toFixed(1) + ' (' + mi(odoMiles(t)) + ')', who); t.lastMsg = 'Trip submitted at ' + clock(now()) + '. It is saved and sent to the office.'; return ''; }); return;
+      save(function () { t.odoE = e; t.mapMi = lean() ? t.auth : Math.round(t.mi * Math.min(1, t.progress) * 10) / 10; t.tripEnd = now(); t.phase = 'done'; log(t, 'Trip submitted', 'Odometer ' + e.toFixed(1) + ' (' + mi(odoMiles(t)) + ')', who); t.lastMsg = 'Trip submitted at ' + clock(now()) + '. It is saved and sent to the office.'; return ''; }); return;
     }
     case 'report': {
       var p = $('prob') && $('prob').value.trim();
@@ -673,6 +713,19 @@ function A(name, el) {
     case 'checkDrv': S.drvImp.text = $('drvcsv').value; S.drvImp.result = parseDrivers(S.drvImp.text); S.msg = ''; render(); return;
     case 'doDrv': { var rd = S.drvImp.result; save(function () { var mx = 0; DRIVERS.forEach(function (d) { mx = Math.max(mx, parseInt(d.id.slice(1), 10) || 0); }); rd.good.forEach(function (g, i) { DRIVERS.push({id: 'D' + (mx + 1 + i), name: g.name, contact: g.contact, status: 'Invited'}); }); S.drvImp = {text: 'name,contact' + rd.bad.concat(rd.dup).map(function (b) { return '\n' + b.raw; }).join(''), result: null}; S.noRestore = true; return rd.good.length + ' driver' + (rd.good.length === 1 ? '' : 's') + ' added.' + (rd.bad.length + rd.dup.length ? ' ' + (rd.bad.length + rd.dup.length) + ' line(s) still need fixing in the box.' : ''); }); return; }
     case 'createTrip': {
+      if (lean()) {
+        var gl = function (id) { return ($(id).value || '').trim(); }, er3 = {}, tm3 = /^(\d{1,2}):(\d{2})$/.exec(gl('ctt')), am = gl('cta'), av = am === '' ? null : parseFloat(am);
+        if (!/^[A-Za-z0-9-]{3,20}$/.test(gl('ctn'))) er3.ctn = 'Enter the trip ID from the broker, using letters, numbers and dashes.';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(gl('ctd'))) er3.ctd = 'Use the format 2026-10-15.';
+        if (!tm3 || +tm3[1] > 23 || +tm3[2] > 59) er3.ctt = 'Enter a real 24-hour time such as 09:30.';
+        if (am !== '' && !(av > 0)) er3.cta = 'Enter the miles as a number, or leave it blank.';
+        if (Object.keys(er3).length) { S.fieldErr = er3; render(); var f3 = ['ctn', 'ctd', 'ctt', 'cta'].filter(function (k) { return er3[k]; })[0]; $(f3).focus(); announce(er3[f3]); return; }
+        if (S.trips.some(function (x) { return x.id.toLowerCase() === gl('ctn').toLowerCase(); })) { S.fieldErr = {}; S.err = 'A trip with this ID already exists. Nothing was added.'; render(); return; }
+        S.fieldErr = {}; var cv3 = $('ctc').value, v3 = {id: gl('ctn'), d: gl('ctd'), t: +tm3[1] * 3600 + +tm3[2] * 60};
+        save(function () { var nt = mkTrip({id: v3.id, date: v3.d, time: v3.t, auth: av, pts: PATHS[(S.tripSeq++) % PATHS.length], contract: cv3 || null}); log(nt, 'Created', 'Added by hand', 'Office'); S.trips.push(nt); S.ob.admin.tripAdded = true; saveOb(); S.noRestore = true;
+          if (!S.ob.admin.done) { S.wizSub = ''; return 'Trip added. ' + nt.id + ' is on the schedule.'; }
+          S.aTrip = nt.id; S.aView = 'trips'; return 'Trip added. ' + nt.id + ' is on the schedule. Assign a driver below.'; }); return;
+      }
       var g = function (id) { return ($(id).value || '').trim(); }, er2 = {}, tm2 = /^(\d{1,2}):(\d{2})$/.exec(g('ctt'));
       if (!/^\d{4}-\d{2}-\d{2}$/.test(g('ctd'))) er2.ctd = 'Use the format 2026-10-15.';
       if (!tm2 || +tm2[1] > 23 || +tm2[2] > 59) er2.ctt = 'Enter a real 24-hour time such as 09:30.';
@@ -687,9 +740,9 @@ function A(name, el) {
         if (!S.ob.admin.done) { S.wizSub = ''; return 'Trip added. ' + nt.id + ' is on the schedule.'; }
         S.aTrip = nt.id; S.aView = 'trips'; return 'Trip added. ' + nt.id + ' is on the schedule. Assign a driver below.'; }); return;
     }
-    case 'tplUse': S.imp.text = TEMPLATE; S.imp.result = null; S.msg = 'Example rows added to the box. Edit them, then press Check rows.'; S.noRestore = true; render(); return;
-    case 'tplCopy': if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(TEMPLATE).then(function () { S.msg = 'Template copied. Paste it into a spreadsheet.'; render(); announce(S.msg); }, function () { S.msg = 'Could not copy. Use the example rows instead.'; render(); }); else { S.msg = 'Copying is not available here. Use the example rows instead.'; render(); } return;
-    case 'tplDownload': { try { var bl = new Blob([TEMPLATE + '\n'], {type: 'text/csv'}), ln = document.createElement('a'); ln.href = URL.createObjectURL(bl); ln.download = 'trip-import-template.csv'; document.body.appendChild(ln); ln.click(); ln.remove(); S.msg = 'Template download started. If your device did not save it, use Copy template instead.'; } catch (e2) { S.msg = 'Could not download here. Use Copy template instead.'; } render(); return; }
+    case 'tplUse': S.imp.text = tpl(); S.imp.result = null; S.msg = 'Example rows added to the box. Edit them, then press Check rows.'; S.noRestore = true; render(); return;
+    case 'tplCopy': if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tpl()).then(function () { S.msg = 'Template copied. Paste it into a spreadsheet.'; render(); announce(S.msg); }, function () { S.msg = 'Could not copy. Use the example rows instead.'; render(); }); else { S.msg = 'Copying is not available here. Use the example rows instead.'; render(); } return;
+    case 'tplDownload': { try { var bl = new Blob([tpl() + '\n'], {type: 'text/csv'}), ln = document.createElement('a'); ln.href = URL.createObjectURL(bl); ln.download = 'trip-import-template.csv'; document.body.appendChild(ln); ln.click(); ln.remove(); S.msg = 'Template download started. If your device did not save it, use Copy template instead.'; } catch (e2) { S.msg = 'Could not download here. Use Copy template instead.'; } render(); return; }
     case 'role': return;
     /* office */
     case 'nav': return go({aView: el.dataset.view, aTrip: null});
@@ -704,13 +757,13 @@ function A(name, el) {
       var basis = $('basis').value, note = $('note').value.trim(), val = basis === 'odo' ? odoMiles(ot) : basis === 'map' ? ot.mapMi : num('cust');
       if (!note) { S.fieldErr = {note: 'Write a reason so there is a record of the decision.'}; render(); $('note').focus(); return; }
       if (val == null || val <= 0) { S.err = 'Enter the other distance in miles.'; render(); return; }
-      S.fieldErr = {}; save(function () { ot.resolved = {miles: val, basis: basis === 'odo' ? 'odometer' : basis === 'map' ? 'map estimate' : 'entered value', note: note}; log(ot, 'Mileage resolved', mi(val) + ' approved. ' + note, 'Office'); return 'Distance approved: ' + mi(val) + '.'; }); return;
+      S.fieldErr = {}; save(function () { ot.resolved = {miles: val, basis: basis === 'odo' ? 'odometer' : basis === 'map' ? basisLbl().toLowerCase() : 'entered value', note: note}; log(ot, 'Mileage resolved', mi(val) + ' approved. ' + note, 'Office'); return 'Distance approved: ' + mi(val) + '.'; }); return;
     }
     case 'approve': save(function () { ot.approved = true; log(ot, 'Approved for billing', money(calc(ot).total), 'Office'); return ot.id + ' approved for billing.'; }); return;
     case 'checkImp': S.imp.text = $('imptext').value; S.imp.result = parseImport(S.imp.text); S.imp.last = S.imp.result.fatal ? S.imp.last : {rejected: S.imp.result.bad.length}; S.msg = ''; render(); announce(S.imp.result.fatal || (S.imp.result.good.length + ' ready, ' + S.imp.result.bad.length + ' rejected, ' + S.imp.result.dup.length + ' duplicates')); return;
     case 'doImp': {
       var r = S.imp.result, n = S.trips.length;
-      save(function () { r.good.forEach(function (g, i) { var t2 = mkTrip({id: nextTripId(), date: g.date, time: g.time, pax: g.pax, pickup: g.pickup, drop: g.drop, pts: PATHS[(n + i) % PATHS.length], contract: g.contract}); log(t2, 'Imported', 'From CSV', 'Office'); S.trips.push(t2); }); var k = r.good.length, nc = r.good.filter(function (g) { return !g.contract; }).length; S.ob.admin.tripAdded = true; saveOb(); S.imp.result = null; S.imp.last = {rejected: r.bad.length}; S.imp.text = r.bad.length ? r.header + '\n' + r.bad.map(function (b) { return b.raw; }).join('\n') : ''; S.noRestore = true; return 'Import completed: ' + k + ' trip' + (k === 1 ? '' : 's') + ' added' + (nc ? ', ' + nc + ' need a contract' : '') + (r.bad.length ? '. ' + r.bad.length + ' rejected row' + (r.bad.length === 1 ? ' is' : 's are') + ' still in the box for you to fix.' : '.'); }); return;
+      save(function () { r.good.forEach(function (g, i) { var t2 = mkTrip({id: g.id || nextTripId(), date: g.date, time: g.time, pax: g.pax || '', pickup: g.pickup || '', drop: g.drop || '', auth: g.auth != null ? g.auth : null, pts: PATHS[(n + i) % PATHS.length], contract: g.contract}); log(t2, 'Imported', 'From CSV', 'Office'); S.trips.push(t2); }); var k = r.good.length, nc = r.good.filter(function (g) { return !g.contract; }).length; S.ob.admin.tripAdded = true; saveOb(); S.imp.result = null; S.imp.last = {rejected: r.bad.length}; S.imp.text = r.bad.length ? r.header + '\n' + r.bad.map(function (b) { return b.raw; }).join('\n') : ''; S.noRestore = true; return 'Import completed: ' + k + ' trip' + (k === 1 ? '' : 's') + ' added' + (nc ? ', ' + nc + ' need a contract' : '') + (r.bad.length ? '. ' + r.bad.length + ' rejected row' + (r.bad.length === 1 ? ' is' : 's are') + ' still in the box for you to fix.' : '.'); }); return;
     }
   }
 }
@@ -724,6 +777,7 @@ document.addEventListener('click', function (e) {
 document.addEventListener('change', function (e) {
   var el = e.target;
   if (el.dataset && el.dataset.a === 'pickC') return A('pickC', el);
+  if (el.name === 'dmode') { S.dataMode = el.value; saveMode(); var rr = S.role; init(); S.role = rr; S.aView = 'contracts'; S.msg = lean() ? 'Now storing calculation data only. The demo data was restarted.' : 'Now storing full trip details. The demo data was restarted.'; render(); announce(S.msg); return; }
   if (el.name === 'mode') { S.mode = el.value; if (S.mode === 'assign' && S.dTab === 'avail') S.dTab = 'home'; S.msg = S.mode === 'claim' ? 'Drivers can now take open jobs.' : 'The office now assigns every job.'; render(); announce(S.msg); return; }
   if (el.dataset && el.dataset.rate) { var k = el.dataset.rate, v = parseFloat(el.value); if (!isNaN(v) && v >= 0) { S.rates[k[0]][k[1]] = v; if (!S.ob.admin.done) { S.ob.admin.contractsOk = false; saveOb(); } S.msg = 'Contract ' + k[0] + ' rate saved.'; render(); announce(S.msg); } return; }
   if (el.id === 'tol') { var tv = parseFloat(el.value); if (tv >= 1 && tv <= 50) { S.tol = tv; S.msg = 'Mileage limit saved.'; render(); announce(S.msg); } return; }
@@ -740,12 +794,12 @@ setInterval(function () {
   var t = byId(S.dTrip); if (!t) return;
   var set = function (id, v) { var el = $(id); if (el) el.textContent = v; };
   if (t.phase === 'inTrip' && !t.wait && d < 3600) {
-    t.moving += d; t.progress = Math.min(1, t.progress + d * (MPH / 3600) / t.mi);
-    if (t.progress >= 1 && !t.atDrop) { t.atDrop = true; render(); return; }
+    t.moving += d; if (!lean()) t.progress = Math.min(1, t.progress + d * (MPH / 3600) / t.mi);
+    if (!lean() && t.progress >= 1 && !t.atDrop) { t.atDrop = true; render(); return; }
     var dyn = $('mapdyn'); if (dyn) dyn.innerHTML = mapDyn(t);
   }
   if (t.wait) set('wT', dur(n - t.wait.s));
-  if (t.phase === 'inTrip') { set('sT', dur(n - t.tripStart)); set('sM', dur(t.moving)); set('sW', dur(waitTotal(t))); set('sG', (t.mi * t.progress).toFixed(1)); }
+  if (t.phase === 'inTrip') { set('sT', dur(n - t.tripStart)); set('sM', dur(t.moving)); set('sW', dur(waitTotal(t))); if (!lean()) set('sG', (t.mi * t.progress).toFixed(1)); }
 }, 250);
 
 window.__app = {state: function () { return S; }, now: now};

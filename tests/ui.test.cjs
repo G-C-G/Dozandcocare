@@ -14,7 +14,7 @@ function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .0
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' }).catch(() => chromium.launch());
   const DONE = { driver: { done: true, step: 4, signedIn: true, contact: '', phase: 'contact' }, admin: { done: true, step: 6, orgOk: true, wfOk: true, contractsOk: true, tripAdded: true } };
   const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
-  await ctx.addInitScript(d => { try { if (!localStorage.getItem('dozcare.ob.v1')) localStorage.setItem('dozcare.ob.v1', JSON.stringify(d)); } catch (e) {} }, DONE);
+  await ctx.addInitScript(d => { try { if (!localStorage.getItem('dozcare.ob.v1')) localStorage.setItem('dozcare.ob.v1', JSON.stringify(d)); localStorage.setItem('dozcare.mode', 'full'); } catch (e) {} }, DONE);
   const p = await ctx.newPage();
   const errors = [];
   p.on('pageerror', e => errors.push(e.message));
@@ -182,6 +182,7 @@ function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .0
 
   console.log('Driver onboarding (phone, first run)');
   const ctx2 = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await ctx2.addInitScript(() => { try { localStorage.setItem('dozcare.mode', 'full'); } catch (e) {} });
   const q = await ctx2.newPage(); const qerr = [];
   q.on('pageerror', e => qerr.push(e.message));
   const qb = async () => (await q.locator('#app').innerText()).replace(/\s+/g, ' ');
@@ -230,6 +231,7 @@ function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .0
 
   console.log('Driver onboarding: skipping');
   const ctx3 = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await ctx3.addInitScript(() => { try { localStorage.setItem('dozcare.mode', 'full'); } catch (e) {} });
   const r3 = await ctx3.newPage(); await r3.goto(URL);
   await r3.click('button:has-text("Get started")'); await r3.fill('#siC', 'amara@example.com'); await r3.click('.actionbar button'); await r3.fill('#siK', '123456'); await r3.click('.actionbar button');
   await r3.click('button:has-text("This is correct")'); await r3.click('button:has-text("Skip for now")');
@@ -238,7 +240,7 @@ function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .0
 
   console.log('Office onboarding (setup wizard)');
   const ctx4 = await browser.newContext({ viewport: { width: 390, height: 800 } });
-  await ctx4.addInitScript(d => { try { if (!localStorage.getItem('dozcare.ob.v1')) localStorage.setItem('dozcare.ob.v1', JSON.stringify(d)); } catch (e) {} }, { driver: DONE.driver, admin: { done: false, step: 0, orgOk: false, wfOk: false, contractsOk: false, tripAdded: false } });
+  await ctx4.addInitScript(d => { try { if (!localStorage.getItem('dozcare.ob.v1')) localStorage.setItem('dozcare.ob.v1', JSON.stringify(d)); localStorage.setItem('dozcare.mode', 'full'); } catch (e) {} }, { driver: DONE.driver, admin: { done: false, step: 0, orgOk: false, wfOk: false, contractsOk: false, tripAdded: false } });
   const w = await ctx4.newPage(); const werr = []; w.on('pageerror', e => werr.push(e.message));
   const wb = async () => (await w.locator('#app').innerText()).replace(/\s+/g, ' ');
   const wsave = () => w.waitForTimeout(600);
@@ -301,7 +303,7 @@ function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .0
 
   console.log('Office onboarding: leaving early and empty states');
   const ctx5 = await browser.newContext({ viewport: { width: 390, height: 800 } });
-  await ctx5.addInitScript(d => { try { if (!localStorage.getItem('dozcare.ob.v1')) localStorage.setItem('dozcare.ob.v1', JSON.stringify(d)); } catch (e) {} }, { driver: DONE.driver, admin: { done: false, step: 0, orgOk: false, wfOk: false, contractsOk: false, tripAdded: false } });
+  await ctx5.addInitScript(d => { try { if (!localStorage.getItem('dozcare.ob.v1')) localStorage.setItem('dozcare.ob.v1', JSON.stringify(d)); localStorage.setItem('dozcare.mode', 'full'); } catch (e) {} }, { driver: DONE.driver, admin: { done: false, step: 0, orgOk: false, wfOk: false, contractsOk: false, tripAdded: false } });
   const x = await ctx5.newPage(); await x.goto(URL); await x.click('#roleOffice');
   await x.click('.actionbar button:has-text("I will do this later")');
   let xb = (await x.locator('#app').innerText()).replace(/\s+/g, ' ');
@@ -321,6 +323,59 @@ function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .0
   ok(/Preview: these trips will be added/.test(xb), 'import shows a preview before anything is added');
   ok(werr.length === 0 && qerr.length === 0, 'no script errors during onboarding', werr.concat(qerr).join(' | '));
   await ctx2.close(); await ctx4.close(); await ctx5.close();
+
+  console.log('Calculation-only mode (the default)');
+  const ctx6 = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await ctx6.addInitScript(d => { try { if (!localStorage.getItem('dozcare.ob.v1')) localStorage.setItem('dozcare.ob.v1', JSON.stringify(d)); } catch (e) {} }, DONE);
+  const c6 = await ctx6.newPage(); const e6 = []; c6.on('pageerror', e => e6.push(e.message));
+  const cb = async () => (await c6.locator('#app').innerText()).replace(/\s+/g, ' ');
+  const cs = () => c6.waitForTimeout(600);
+  await c6.goto(URL);
+  await c6.evaluate(() => { document.getElementById('demo').open = true; }); await c6.selectOption('#speed', '90'); await c6.evaluate(() => { document.getElementById('demo').open = false; });
+  ok(/Data stored: trip ID, time, contract, driver and miles only/.test(await c6.locator('.demoline').innerText()), 'header states exactly what is stored');
+  b = await cb();
+  ok(/Trip T-2002/.test(b) && /9:30 AM/.test(b) && !/Elm St|Oak Ave|P-014|Passenger/.test(b), 'driver home shows time and trip ID, no passenger or address');
+  await c6.click('button:has-text("View trip")');
+  ok(/broker.s system/.test(await cb()) && await c6.locator('a:has-text("Open directions")').count() === 0, 'driver is pointed to the broker system, no directions link');
+  await c6.click('.actionbar button'); await cs();
+  await c6.fill('#odoS', '1000'); await c6.click('.actionbar button'); await cs();
+  b = await cb();
+  ok(await c6.locator('.mapwrap').count() === 0 && /Authorised miles/.test(b) && /10\.5/.test(b), 'no map is shown, authorised miles are');
+  await c6.click('.actionbar button'); await cs();
+  await c6.fill('#odoE', '1010.6'); await c6.click('.actionbar button'); await cs();
+  ok(/Trip submitted at/.test(await cb()), 'a full trip works without any passenger data');
+  const held = await c6.evaluate(() => JSON.stringify(window.__app.state().trips.map(t => [t.pax, t.pickup, t.drop, t.note])));
+  ok(!/[A-Za-z0-9]/.test(held.replace(/[\[\]",]/g, '')), 'no passenger, address or note is held in any trip', held.slice(0, 80));
+  await c6.setViewportSize({ width: 1280, height: 900 }); await c6.click('#roleOffice');
+  await c6.click('.adm nav button:has-text("Trips")');
+  b = await cb();
+  ok(/Authorised/.test(b) && !/Elm St|Mill Rd|P-0\d\d/.test(b), 'office list shows authorised miles, no passenger details');
+  await c6.click('#rows button:has-text("T-2000")');
+  b = await cb();
+  ok(/Authorised miles \(broker\)/.test(b) && /above the 10% limit/.test(b) && !/Destination|Passenger/.test(b), 'mileage is checked against broker miles; no destination or passenger rows');
+  await c6.click('.crumbs button'); await c6.click('button:has-text("Add a trip")');
+  ok(await c6.locator('#ctn').count() === 1 && await c6.locator('#ctp').count() === 0, 'trip form asks for trip ID and miles, not passenger or addresses');
+  await c6.click('.card button:has-text("Add trip")');
+  ok(/trip ID from the broker/.test(await cb()), 'trip form explains the trip ID');
+  await c6.fill('#ctn', 'BR-90001'); await c6.fill('#ctd', '2026-10-15'); await c6.fill('#ctt', '16:00'); await c6.fill('#cta', '7.5'); await c6.selectOption('#ctc', 'A');
+  await c6.click('.card button:has-text("Add trip")'); await cs();
+  ok(/Trip added\. BR-90001/.test(await cb()), 'trip added by broker trip ID');
+  await c6.click('.adm nav button:has-text("Import trips")');
+  ok(/Columns: trip_id, date, time, contract, authorised_miles/.test(await cb()) && /Do not include passenger names/.test(await cb()), 'import tells staff not to include passenger details');
+  await c6.click('button:has-text("Check rows")');
+  b = await cb();
+  ok(/Ready to import 3/.test(b) && /Rejected 3/.test(b) && /Already in the system 1/.test(b), 'import: 3 ready, 3 rejected, 1 duplicate trip ID');
+  ok(/Authorised miles must be a number/.test(b) && /Contract must be A, B or blank/.test(b), 'import explains each rejected row');
+  await c6.click('.adm nav button:has-text("Contracts")');
+  ok(/What this app stores/.test(await cb()) && /Calculation only \(recommended\)/.test(await cb()), 'the data setting is visible and explained');
+  await c6.check('#dmFull'); await c6.waitForTimeout(300);
+  ok(/Now storing full trip details/.test(await cb()), 'switching to full details is explicit');
+  await c6.click('.adm nav button:has-text("Trips")');
+  ok(/Mill Rd|Elm St|Oak Ave/.test(await cb()), 'full mode shows addresses again');
+  await c6.click('.adm nav button:has-text("Contracts")'); await c6.check('#dmCalc'); await c6.waitForTimeout(300);
+  ok(/Now storing calculation data only/.test(await cb()), 'and back to calculation only');
+  ok(e6.length === 0, 'no script errors in calculation-only mode', e6.join(' | '));
+  await ctx6.close();
 
   ok(errors.length === 0, 'no script errors', errors.join(' | '));
   console.log('\n' + pass + ' passed, ' + fail + ' failed');

@@ -1,0 +1,95 @@
+<title>Doz and CoCare Trips Summary</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --navy:#233B82; --green:#2E7D32; --green-soft:#E6F2E4; --amber:#7A4B00; --amber-soft:#FDF1D8;
+  --bg:#F3F6FB; --card:#FFFFFF; --text:#18233F; --text2:#53607C; --line:#DCE3EF;
+  --sans:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif; color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--sans);
+  padding-block:24px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.page{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+h1{font-size:24px;line-height:1.2;margin:0;text-wrap:balance}
+h2{font-size:15px;margin:0 0 8px;color:var(--navy);letter-spacing:.02em}
+p{margin:0}
+.sub{color:var(--text2)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.good{background:var(--green-soft);border-color:#B9DDB6}
+.warn{background:var(--amber-soft);border-color:#EBCB8B;color:var(--amber)}
+.warn h2{color:var(--amber)}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:13px;color:var(--text2)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto}
+.small{font-size:13px;color:var(--text2)}
+b{font-weight:600}
+</style>
+<div class="page">
+  <header>
+    <div>
+      <h1>Doz and CoCare Trips: one-page summary</h1>
+      <p class="sub">A phone app for drivers and an office view that calculates each trip. Demo, with invented data.</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>What the app does</h2>
+      <ul>
+        <li><b>Driver, on a phone:</b> sees the next trip, taps arrived, confirms the contract, starts, records any waiting, ends, and enters the odometer. Every step is confirmed on screen.</li>
+        <li><b>Office:</b> sees what needs attention first, checks each trip's mileage against the broker's authorised miles, approves trips for billing, adds drivers and imports trips.</li>
+        <li><b>The calculation:</b> flat fee + (approved miles × rate per mile). Contract A is $13.50 + $1.60 a mile and Contract B is $15.00 + $1.75 a mile. Both are the owner's figures and are <b>unconfirmed</b>. The result is the amount charged, not profit.</li>
+        <li><b>Not built yet:</b> real login, saved data, live GPS, invoicing, driver pay. Waiting time is recorded but not charged until a rule is confirmed.</li>
+      </ul>
+    </section>
+
+    <section class="card good">
+      <h2>The HIPAA workaround: calculation only</h2>
+      <p>HIPAA depends on who you are in the contract and what data you hold, not on whether the app "does care". So the app can be set to hold only what the calculation needs.</p>
+      <ul style="margin-top:8px">
+        <li><b>Stored:</b> trip ID, date, time, contract, driver, odometer, authorised miles.</li>
+        <li><b>Not stored:</b> passenger names or references, pickup and destination addresses, notes.</li>
+        <li><b>The setting is on the Contracts page.</b> It is on by default in the demo, and can be switched to full details to show the client both.</li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="card warn">
+    <h2>The catch: drivers need the addresses</h2>
+    <p>In calculation-only mode the driver gets the pickup and destination from the broker's own system or manifest, not from this app. That is one extra step for the driver. If the addresses must be inside this app, there are two options:</p>
+    <ul style="margin-top:8px">
+      <li><b>Keep calculation only</b> and let the broker's system stay the source of addresses. Cheapest.</li>
+      <li><b>Store addresses</b> with HIPAA-capable hosting and a signed agreement. About 25 times the hosting cost (below), and it needs the broker's go-ahead.</li>
+    </ul>
+    <p style="margin-top:8px">Whether storing addresses brings HIPAA in is <b>unconfirmed</b>. It depends on the broker contract and is a question for the broker or a healthcare lawyer. This page is not legal advice.</p>
+  </section>
+
+  <section class="card">
+    <h2>Cost to host and run, as built by you</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Route</th><th>What you pay for</th><th class="r">Per month</th><th class="r">Per year</th></tr></thead>
+      <tbody>
+        <tr><td><b>Calculation only</b></td><td>Supabase Pro $25, Railway Hobby $5, text messages about $3 to $10</td><td class="r">$35 to $45</td><td class="r">$415 to $500</td></tr>
+        <tr><td><b>Full details with HIPAA hosting</b></td><td>Supabase Team $599 plus HIPAA add-on (about $350, third-party figure, unconfirmed)</td><td class="r">about $950</td><td class="r">about $11,400</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small" style="margin-top:8px">Hosting prices are from Supabase and Railway's pricing pages. Text message cost uses Twilio's published rate. The domain name is extra, and the add-on price must be confirmed with Supabase. No developer fees are included, because you are building and running it. Your time is the real maintenance cost: plan on a few hours a month.</p>
+  </section>
+
+  <section class="card">
+    <h2>What must be confirmed before real use</h2>
+    <ul>
+      <li>Does the broker or payer require a HIPAA business associate agreement, and what trip data may you store?</li>
+      <li>Is the service NEMT vans only, or also ambulance or stretcher transport? That changes the answer.</li>
+      <li>Are the contract rates revenue, driver pay, or both? Is waiting time paid?</li>
+      <li>How many trips a month, and how many drivers? Everything above assumes about 10 drivers.</li>
+      <li>The demo has no back end yet. Login, saved data and access rules must be built and checked before real trips go in.</li>
+    </ul>
+  </section>
+</div>

@@ -67,3 +67,9 @@ Run it: open `app/index.html`. Test it: `NODE_PATH=$(npm root -g) node tests/ui.
 2. Ask two administrators to add a driver, set a contract, add a trip, assign it, find a completed trip, and say whether it is ready for billing.
 3. Record: tasks completed without help, time per task, mistakes, times they asked for help, and a 1 to 5 confidence rating after each task.
 4. Change what causes hesitation, then repeat with new people.
+
+## Calculation-only mode (added 2026-10-16)
+
+The app now has a "What this app stores" setting on the Contracts page. **Calculation only** is the default. It holds trip ID, date, time, contract, driver, odometer and authorised miles (from the broker). It holds no passenger names or references, no addresses and no notes, and the driver is told to take pickup and destination from the broker's system. **Full trip details** restores the earlier behaviour. Tests cover both modes, including a check that no passenger, address or note data is held in any trip in calculation-only mode.
+
+This reduces the chance that HIPAA applies. It does not remove it: the broker contract may still require a business associate agreement. Drivers need addresses to do the job, so this mode relies on the broker's system for them. See `docs/ONE_PAGER.html`.
